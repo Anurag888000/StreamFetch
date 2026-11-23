@@ -1,4 +1,4 @@
-import { VideoMetadata } from './video';
+import { VideoMetadata, PlaylistMetadata } from './video';
 
 export type JobStatus = 'queued' | 'downloading' | 'processing' | 'completed' | 'failed';
 
@@ -12,6 +12,10 @@ export interface ProgressPayload {
   message?: string;
   downloadUrl?: string;
   filename?: string;
+  isPlaylist?: boolean;
+  currentVideoIndex?: number;
+  totalVideos?: number;
+  currentVideoTitle?: string;
 }
 
 export interface DownloadJob {
@@ -27,6 +31,10 @@ export interface DownloadJob {
   filePath?: string;
   fileSize?: number;
   error?: string;
+  isPlaylist?: boolean;
+  currentVideoIndex?: number;
+  totalVideos?: number;
+  currentVideoTitle?: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -36,11 +44,14 @@ export interface DownloadRequestPayload {
   formatId?: string;
   outputFormat?: 'mp4' | 'mp3' | 'webm' | 'mkv';
   title?: string;
+  isPlaylist?: boolean;
+  selectedVideoUrls?: string[];
 }
 
 export interface InfoResponse {
   success: boolean;
-  data?: VideoMetadata;
+  isPlaylist?: boolean;
+  data?: VideoMetadata | PlaylistMetadata;
   error?: string;
 }
 

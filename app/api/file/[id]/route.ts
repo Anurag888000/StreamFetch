@@ -45,6 +45,7 @@ export async function GET(
     '.mkv': 'video/x-matroska',
     '.mp3': 'audio/mpeg',
     '.m4a': 'audio/mp4',
+    '.zip': 'application/zip',
   };
 
   const contentType = contentTypeMap[ext] || 'application/octet-stream';
@@ -55,15 +56,44 @@ export async function GET(
   const fileStream = fs.createReadStream(filePath);
   const readable = new ReadableStream({
     start(controller) {
-      fileStream.on('data', (chunk) => controller.enqueue(chunk));
-      fileStream.on('end', () => controller.close());
+      let isClosed = false;
+
+      const safeEnqueue = (chunk: any) => {
+        if (isClosed) return;
+        try {
+          controller.enqueue(chunk);
+        } catch {
+          isClosed = true;
+        }
+      };
+
+      const safeClose = () => {
+        if (isClosed) return;
+        isClosed = true;
+        try {
+          controller.close();
+        } catch {}
+      };
+
+      const safeError = (err: any) => {
+        if (isClosed) return;
+        isClosed = true;
+        try {
+          controller.error(err);
+        } catch {}
+      };
+
+      fileStream.on('data', (chunk) => safeEnqueue(chunk));
+      fileStream.on('end', () => safeClose());
       fileStream.on('error', (err) => {
         logger.error('API:FILE', `Stream error reading ${cleanFilename}`, err);
-        controller.error(err);
+        safeError(err);
       });
     },
     cancel() {
-      fileStream.destroy();
+      try {
+        fileStream.destroy();
+      } catch {}
     },
   });
 

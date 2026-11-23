@@ -3,17 +3,18 @@
 import { useState } from 'react';
 import UrlInput from '@/components/download/url-input';
 import VideoCard from '@/components/download/video-card';
+import PlaylistCard from '@/components/download/playlist-card';
 import { useDownload } from '@/hooks/use-download';
 import {
   Play,
   Camera,
   MessageCircle,
+  Video,
   ThumbsUp,
-  ShieldCheck,
-  Zap,
-  Sliders,
-  CheckCircle2,
-  AlertTriangle,
+  Gauge,
+  ArrowDownToLine,
+  FolderArchive,
+  AlertCircle,
 } from 'lucide-react';
 
 export default function Home() {
@@ -21,93 +22,106 @@ export default function Home() {
     loadingInfo,
     downloading,
     metadata,
+    playlistMetadata,
+    isPlaylist,
     progress,
     error,
     fetchInfo,
     startDownload,
-    reset,
   } = useDownload();
 
-  const [activePlatformFilter, setActivePlatformFilter] = useState<string>('all');
-
   const platforms = [
-    { id: 'youtube', name: 'YouTube', icon: Play, color: 'text-red-500', badge: 'Videos & Shorts' },
-    { id: 'instagram', name: 'Instagram', icon: Camera, color: 'text-pink-500', badge: 'Reels & Stories' },
-    { id: 'twitter', name: 'Twitter / X', icon: MessageCircle, color: 'text-sky-400', badge: 'HD Videos' },
-    { id: 'facebook', name: 'Facebook', icon: ThumbsUp, color: 'text-blue-500', badge: 'Reels & Watch' },
+    { id: 'youtube', name: 'YouTube', icon: Play, color: 'text-red-400', badge: 'Videos, Shorts & Playlists' },
+    { id: 'instagram', name: 'Instagram', icon: Camera, color: 'text-pink-400', badge: 'Reels & Stories' },
+    { id: 'twitter', name: 'X / Twitter', icon: MessageCircle, color: 'text-sky-400', badge: 'HD Videos' },
+    { id: 'tiktok', name: 'TikTok', icon: Video, color: 'text-cyan-400', badge: 'No-Watermark Media' },
+    { id: 'facebook', name: 'Facebook', icon: ThumbsUp, color: 'text-blue-400', badge: 'Watch & Reels' },
   ];
 
   return (
-    <div className="relative flex flex-col items-center justify-center overflow-hidden">
-      {/* Background Glow */}
-      <div className="absolute top-0 -z-10 h-[500px] w-full max-w-5xl bg-gradient-to-b from-blue-600/15 via-indigo-600/5 to-transparent blur-3xl pointer-events-none" />
+    <div className="relative flex flex-col items-center justify-center">
+      {/* Subtle Top Mesh Glow */}
+      <div className="absolute top-0 -z-10 h-[380px] w-full max-w-4xl bg-neutral-800/10 blur-3xl pointer-events-none" />
 
       {/* Hero Section */}
-      <section className="mx-auto w-full max-w-4xl px-4 pt-12 pb-16 sm:pt-20 text-center">
-        <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3.5 py-1 text-xs font-medium text-blue-400 mb-6">
-          <Zap className="h-3.5 w-3.5 text-blue-400" />
-          <span>High-Speed Direct Media Extraction</span>
+      <section className="mx-auto w-full max-w-4xl px-4 pt-10 pb-14 sm:pt-16 sm:pb-16 text-center">
+        {/* Real-world Pill */}
+        <div className="inline-flex items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/90 px-3 py-1 text-xs font-mono text-neutral-400 mb-6">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>Multi-Threaded • IDM Native • Direct Browser Stream</span>
         </div>
 
-        <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white mb-4">
-          Download Any Video <br />
-          <span className="bg-gradient-to-r from-blue-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-            Without Limitations
-          </span>
+        {/* Clean, authoritative headline */}
+        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mb-3 leading-tight">
+          Extract & Download Media <br className="hidden sm:inline" />
+          <span className="text-neutral-400 font-normal">Directly at full line speed</span>
         </h1>
 
-        <p className="mx-auto max-w-2xl text-sm sm:text-lg text-slate-400 mb-8 leading-relaxed">
-          The ultimate downloader for YouTube, Instagram Reels, TikTok, and Twitter.
-          Save in crystal clear 1080p, 4K, or extract crystal clear MP3 audio instantly.
+        <p className="mx-auto max-w-xl text-xs sm:text-sm text-neutral-400 mb-8 leading-relaxed">
+          Pipes high-definition video, audio, and complete playlists straight to your browser or download manager without server buffering.
         </p>
 
-        {/* Input Box */}
+        {/* Input Command Bar */}
         <div className="mx-auto max-w-2xl">
           <UrlInput onSubmit={(url) => fetchInfo(url)} isLoading={loadingInfo} />
         </div>
 
         {/* Error notification */}
         {error && (
-          <div className="mx-auto mt-4 max-w-2xl flex items-start gap-3 rounded-2xl bg-red-500/10 border border-red-500/20 p-4 text-left text-sm text-red-400">
-            <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="mx-auto mt-4 max-w-2xl flex items-start gap-3 rounded-xl bg-red-950/30 border border-red-800/50 p-3.5 text-left text-xs text-red-300">
+            <AlertCircle className="h-4 w-4 shrink-0 text-red-400 mt-0.5" />
             <div>
-              <div className="font-semibold">Analysis Failed</div>
-              <div className="text-xs text-red-300/90 mt-0.5">{error}</div>
+              <div className="font-semibold text-red-200">Unable to Inspect Media</div>
+              <div className="text-neutral-400 mt-0.5">{error}</div>
             </div>
           </div>
         )}
 
         {/* Video Card Results */}
-        {metadata && (
+        {!isPlaylist && metadata && (
           <div className="mx-auto mt-8 max-w-3xl text-left">
             <VideoCard
               metadata={metadata}
               downloading={downloading}
               progress={progress}
               onDownload={(formatId, outputFormat) =>
-                startDownload(metadata.url, formatId, outputFormat)
+                startDownload(metadata.url, formatId, outputFormat, false)
               }
             />
           </div>
         )}
 
-        {/* Supported Platforms Grid */}
-        <div className="mt-14 pt-8 border-t border-slate-800/60">
-          <p className="text-xs uppercase tracking-wider text-slate-500 font-semibold mb-6">
-            Supported Sources & Formats
+        {/* Playlist Card Results */}
+        {isPlaylist && playlistMetadata && (
+          <div className="mx-auto mt-8 max-w-3xl text-left">
+            <PlaylistCard
+              playlist={playlistMetadata}
+              downloading={downloading}
+              progress={progress}
+              onDownload={(formatId, outputFormat) =>
+                startDownload(playlistMetadata.url, formatId, outputFormat, true)
+              }
+            />
+          </div>
+        )}
+
+        {/* Supported Sources Bar */}
+        <div className="mt-14 pt-8 border-t border-neutral-800/80">
+          <p className="text-[11px] font-mono uppercase tracking-wider text-neutral-500 mb-4">
+            Supported Media Platforms
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
             {platforms.map((p) => {
               const Icon = p.icon;
               return (
                 <div
                   key={p.id}
-                  className="flex flex-col items-center justify-center p-4 rounded-2xl bg-[#0f172a]/60 border border-slate-800 hover:border-slate-700 transition-all group"
+                  className="flex flex-col items-center justify-center p-3 rounded-xl bg-neutral-900/60 border border-neutral-800/80 hover:border-neutral-700 transition-all text-center"
                 >
-                  <Icon className={`h-7 w-7 ${p.color} transition-transform group-hover:scale-110`} />
-                  <span className="mt-2 text-sm font-semibold text-white">{p.name}</span>
-                  <span className="text-[11px] text-slate-400">{p.badge}</span>
+                  <Icon className={`h-5 w-5 ${p.color}`} />
+                  <span className="mt-1.5 text-xs font-medium text-white">{p.name}</span>
+                  <span className="text-[10px] font-mono text-neutral-500 line-clamp-1">{p.badge}</span>
                 </div>
               );
             })}
@@ -115,42 +129,42 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Feature Highlights */}
-      <section id="features" className="w-full border-t border-slate-800/80 bg-[#070b14] py-16">
+      {/* Professional Technical Features Grid */}
+      <section id="features" className="w-full border-t border-neutral-800/80 bg-neutral-950 py-14">
         <div className="mx-auto max-w-5xl px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-white">Engineered For Reliability</h2>
-            <p className="mt-2 text-sm text-slate-400">Built on modern protocols for smooth and safe downloads.</p>
+          <div className="text-center mb-10">
+            <h2 className="text-xl sm:text-2xl font-bold text-white">Engineered For Utility & Speed</h2>
+            <p className="mt-1 text-xs sm:text-sm text-neutral-400">Direct binary streaming with zero server-side disk bottlenecking.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="rounded-2xl border border-slate-800 bg-[#0d1322] p-6 space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-                <Sliders className="h-5 w-5" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 space-y-2.5">
+              <div className="h-9 w-9 rounded-lg bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-white">
+                <Gauge className="h-4 w-4" />
               </div>
-              <h3 className="text-base font-semibold text-white">Multi-Resolution Selection</h3>
-              <p className="text-xs leading-relaxed text-slate-400">
-                Pick your preferred quality from 360p up to full 4K UHD, or extract pristine 320kbps MP3 audio with one click.
+              <h3 className="text-sm font-semibold text-white">8x Multi-Threaded Streaming</h3>
+              <p className="text-xs leading-relaxed text-neutral-400">
+                Pipes fragments concurrently with Google CDN ratebypass enabled, maximizing your available ISP bandwidth without artificial caps.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-[#0d1322] p-6 space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-                <Zap className="h-5 w-5" />
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 space-y-2.5">
+              <div className="h-9 w-9 rounded-lg bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-white">
+                <ArrowDownToLine className="h-4 w-4" />
               </div>
-              <h3 className="text-base font-semibold text-white">Live SSE Progress Stream</h3>
-              <p className="text-xs leading-relaxed text-slate-400">
-                Real-time Server-Sent Events transmit download percentage, transfer speeds, and exact ETA directly to your browser.
+              <h3 className="text-sm font-semibold text-white">IDM Native & HTTP 206 Resume</h3>
+              <p className="text-xs leading-relaxed text-neutral-400">
+                Full RFC 7233 Range headers and ETag validation allow Internet Download Manager to detect file types and resume broken connections.
               </p>
             </div>
 
-            <div className="rounded-2xl border border-slate-800 bg-[#0d1322] p-6 space-y-3">
-              <div className="h-10 w-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                <ShieldCheck className="h-5 w-5" />
+            <div className="rounded-xl border border-neutral-800 bg-neutral-900/50 p-5 space-y-2.5">
+              <div className="h-9 w-9 rounded-lg bg-neutral-800 border border-neutral-700/60 flex items-center justify-center text-white">
+                <FolderArchive className="h-4 w-4" />
               </div>
-              <h3 className="text-base font-semibold text-white">Zero Third-Party Ads</h3>
-              <p className="text-xs leading-relaxed text-slate-400">
-                Clean, safe, open-source experience without popups, redirects, or malicious trackers. Your data remains private.
+              <h3 className="text-sm font-semibold text-white">Direct Streaming ZIP Archive</h3>
+              <p className="text-xs leading-relaxed text-neutral-400">
+                Packages multi-track playlists on-the-fly into standardized PKZip archives streamed straight into memory without filling up your server hard drive.
               </p>
             </div>
           </div>
@@ -159,4 +173,3 @@ export default function Home() {
     </div>
   );
 }
-

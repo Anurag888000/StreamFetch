@@ -5,6 +5,7 @@ export interface ValidationResult {
   platform: Platform;
   isPlaylist: boolean;
   cleanUrl: string;
+  playlistId?: string;
   error?: string;
 }
 
@@ -31,8 +32,17 @@ export function validateVideoUrl(inputUrl: string): ValidationResult {
     const parsed = new URL(url);
 
     if (YOUTUBE_REGEX.test(url)) {
-      const isPlaylist = YOUTUBE_PLAYLIST_REGEX.test(url) && !parsed.searchParams.has('v');
-      return { valid: true, platform: 'youtube', isPlaylist, cleanUrl: url };
+      const match = url.match(YOUTUBE_PLAYLIST_REGEX);
+      const listId = match ? match[1] : undefined;
+      // It's a playlist if /playlist endpoint or list param without v, or if list param exists
+      const isPlaylist = Boolean(listId && (parsed.pathname.includes('/playlist') || !parsed.searchParams.has('v')));
+      
+      let cleanUrl = url;
+      if (isPlaylist && listId) {
+        cleanUrl = `https://www.youtube.com/playlist?list=${listId}`;
+      }
+
+      return { valid: true, platform: 'youtube', isPlaylist, cleanUrl, playlistId: listId };
     }
 
     if (INSTAGRAM_REGEX.test(url)) {

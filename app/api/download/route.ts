@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
-import { downloadMedia } from '@/lib/ytdlp';
+import { downloadMedia, downloadPlaylist } from '@/lib/ytdlp';
 import { progressManager } from '@/lib/progress-manager';
 import { validateVideoUrl } from '@/lib/validators';
 import { logger } from '@/lib/logger';
@@ -13,9 +13,9 @@ export async function POST(req: NextRequest) {
 
   try {
     requestPayload = await req.json();
-    const { url, formatId = 'bestvideo+bestaudio/best', outputFormat = 'mp4' } = requestPayload;
+    const { url, formatId = 'bestvideo+bestaudio/best', outputFormat = 'mp4', isPlaylist = false } = requestPayload;
 
-    logger.request('download', 'POST', { url, formatId, outputFormat });
+    logger.request('download', 'POST', { url, formatId, outputFormat, isPlaylist });
 
     if (!url || typeof url !== 'string') {
       const errRes = { success: false, error: 'URL is required' };
@@ -33,47 +33,95 @@ export async function POST(req: NextRequest) {
     const jobId = uuidv4();
     progressManager.createJob(jobId, validation.cleanUrl, formatId, outputFormat);
 
-    logger.info('API:DOWNLOAD', `Job ${jobId} registered for ${validation.cleanUrl} [${outputFormat}]`);
+    const shouldDownloadPlaylist = isPlaylist || validation.isPlaylist;
 
-    // Start background download
-    downloadMedia({
-      jobId,
-      url: validation.cleanUrl,
-      formatId,
-      outputFormat,
-      onProgress: (percent, speed, eta) => {
-        progressManager.updateProgress(jobId, {
-          status: 'downloading',
-          percent,
-          speed,
-          eta,
-        });
-      },
-      onComplete: (filePath, filename, fileSize) => {
-        logger.info('API:DOWNLOAD', `Job ${jobId} download finished`, {
-          filename,
-          filePath,
-          fileSize,
-        });
-        progressManager.updateProgress(jobId, {
-          status: 'completed',
-          percent: 100,
-          filePath,
-          filename,
-          fileSize,
-        });
-      },
-      onError: (errorMessage) => {
-        logger.error('API:DOWNLOAD', `Job ${jobId} download failed`, errorMessage, {
-          url: validation.cleanUrl,
-          formatId,
-        });
-        progressManager.updateProgress(jobId, {
-          status: 'failed',
-          error: errorMessage,
-        });
-      },
-    });
+    logger.info('API:DOWNLOAD', `Job ${jobId} registered for ${validation.cleanUrl} [playlist=${shouldDownloadPlaylist}, ${outputFormat}]`);
+
+    if (shouldDownloadPlaylist) {
+      downloadPlaylist({
+        jobId,
+        url: validation.cleanUrl,
+        formatId,
+        outputFormat,
+        onProgress: (percent, speed, eta, currentItem, totalItems, currentTitle) => {
+          progressManager.updateProgress(jobId, {
+            status: 'downloading',
+            percent,
+            speed,
+            eta,
+            isPlaylist: true,
+            currentVideoIndex: currentItem,
+            totalVideos: totalItems,
+            currentVideoTitle: currentTitle,
+          });
+        },
+        onComplete: (filePath, filename, fileSize) => {
+          logger.info('API:DOWNLOAD', `Playlist job ${jobId} download finished`, {
+            filename,
+            filePath,
+            fileSize,
+          });
+          progressManager.updateProgress(jobId, {
+            status: 'completed',
+            percent: 100,
+            filePath,
+            filename,
+            fileSize,
+            isPlaylist: true,
+          });
+        },
+        onError: (errorMessage) => {
+          logger.error('API:DOWNLOAD', `Playlist job ${jobId} failed`, errorMessage);
+          progressManager.updateProgress(jobId, {
+            status: 'failed',
+            error: errorMessage,
+            isPlaylist: true,
+          });
+        },
+      });
+    } else {
+      downloadMedia({
+        jobId,
+        url: validation.cleanUrl,
+        formatId,
+        outputFormat,
+        onProgress: (percent, speed, eta) => {
+          progressManager.updateProgress(jobId, {
+            status: 'downloading',
+            percent,
+            speed,
+            eta,
+            isPlaylist: false,
+          });
+        },
+        onComplete: (filePath, filename, fileSize) => {
+          logger.info('API:DOWNLOAD', `Job ${jobId} download finished`, {
+            filename,
+            filePath,
+            fileSize,
+          });
+          progressManager.updateProgress(jobId, {
+            status: 'completed',
+            percent: 100,
+            filePath,
+            filename,
+            fileSize,
+            isPlaylist: false,
+          });
+        },
+        onError: (errorMessage) => {
+          logger.error('API:DOWNLOAD', `Job ${jobId} download failed`, errorMessage, {
+            url: validation.cleanUrl,
+            formatId,
+          });
+          progressManager.updateProgress(jobId, {
+            status: 'failed',
+            error: errorMessage,
+            isPlaylist: false,
+          });
+        },
+      });
+    }
 
     const successRes = { success: true, jobId };
     logger.response('download', 200, successRes, Date.now() - startTime);

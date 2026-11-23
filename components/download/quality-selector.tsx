@@ -19,9 +19,10 @@ export default function QualitySelector({
 }: QualitySelectorProps) {
   return (
     <div className="space-y-2">
-      <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-        Choose Quality & Format
-      </label>
+      <div className="flex items-center justify-between text-xs text-neutral-400">
+        <span className="font-medium tracking-wide text-neutral-300">Available Quality Formats</span>
+        <span className="text-[11px] font-mono text-neutral-500">Pick format to stream</span>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {formats.map((fmt) => {
@@ -36,29 +37,33 @@ export default function QualitySelector({
               onClick={() => onSelectFormat(fmt.formatId, fmt.ext)}
               className={`flex items-center justify-between p-3 rounded-xl border text-left transition-all ${
                 isSelected
-                  ? 'border-blue-500 bg-blue-600/15 text-white shadow-sm'
-                  : 'border-slate-800 bg-[#0d131f] text-slate-300 hover:border-slate-700 hover:bg-slate-800/40'
+                  ? 'border-neutral-400 bg-neutral-800 text-white shadow-sm ring-1 ring-white/10'
+                  : 'border-neutral-800/80 bg-neutral-900/60 text-neutral-300 hover:border-neutral-700 hover:bg-neutral-800/40'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               <div className="flex items-center gap-2.5">
                 <div
-                  className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                    isAudioOnly ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'
+                  className={`flex h-8 w-8 items-center justify-center rounded-lg border ${
+                    isSelected
+                      ? 'bg-white text-black border-white'
+                      : isAudioOnly
+                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      : 'bg-neutral-800 text-neutral-300 border-neutral-700/60'
                   }`}
                 >
                   {isAudioOnly ? <Music className="h-4 w-4" /> : <Video className="h-4 w-4" />}
                 </div>
                 <div>
-                  <div className="text-xs font-semibold text-white">
+                  <div className="text-xs font-medium text-white">
                     {fmt.resolution || fmt.qualityLabel || 'Standard'}
                   </div>
-                  <div className="text-[10px] text-slate-400 uppercase tracking-wider">
+                  <div className="text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
                     {fmt.ext.toUpperCase()} {fmt.filesize ? `• ${formatBytes(fmt.filesize)}` : ''}
                   </div>
                 </div>
               </div>
 
-              {isSelected && <Check className="h-4 w-4 text-blue-400" />}
+              {isSelected && <Check className="h-4 w-4 text-white" />}
             </button>
           );
         })}
@@ -66,4 +71,3 @@ export default function QualitySelector({
     </div>
   );
 }
-

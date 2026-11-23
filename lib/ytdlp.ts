@@ -51,6 +51,20 @@ export function getDownloadDirectory(): string {
 }
 
 /**
+ * High-performance yt-dlp speed optimization flags:
+ * - 8 concurrent fragment connections (--concurrent-fragments 8)
+ * - 10MB HTTP chunk size to bypass YouTube rate pacing (--http-chunk-size 10M)
+ * - 1024KB I/O buffer to minimize system context switches (--buffer-size 1024K)
+ * - Android player client spoofing for uncapped CDN ratebypass (--extractor-args "youtube:player_client=android,web")
+ */
+export const YTDLP_SPEED_ARGS: string[] = [
+  '--concurrent-fragments', '8',
+  '--http-chunk-size', '10M',
+  '--buffer-size', '1024K',
+  '--extractor-args', 'youtube:player_client=android,web',
+];
+
+/**
  * Fetch video metadata via yt-dlp --dump-json
  */
 export async function fetchVideoMetadata(rawUrl: string): Promise<VideoMetadata> {
@@ -64,6 +78,7 @@ export async function fetchVideoMetadata(rawUrl: string): Promise<VideoMetadata>
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
+    '--extractor-args', 'youtube:player_client=android,web',
     validation.cleanUrl,
   ];
 
@@ -188,6 +203,92 @@ function consolidateFormats(formats: VideoFormat[]): VideoFormat[] {
 }
 
 /**
+ * Fetch YouTube playlist metadata via yt-dlp --flat-playlist --dump-single-json
+ */
+export async function fetchPlaylistMetadata(rawUrl: string): Promise<PlaylistMetadata> {
+  const validation = validateVideoUrl(rawUrl);
+  if (!validation.valid) {
+    throw new Error(validation.error || 'Invalid URL');
+  }
+
+  const args = [
+    '--flat-playlist',
+    '--dump-single-json',
+    '--no-warnings',
+    '--no-check-certificates',
+    '--extractor-args', 'youtube:player_client=android,web',
+    validation.cleanUrl,
+  ];
+
+  logger.engine('YTDLP', `Executing playlist probe for ${validation.cleanUrl}`, {
+    binary: YTDLP_BIN,
+    args,
+  });
+
+  return new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const child = spawn(YTDLP_BIN, args, { windowsHide: true });
+    let stdoutData = '';
+    let stderrData = '';
+
+    child.stdout.on('data', (chunk) => {
+      stdoutData += chunk.toString();
+    });
+
+    child.stderr.on('data', (chunk) => {
+      stderrData += chunk.toString();
+    });
+
+    child.on('error', (err) => {
+      logger.error('ENGINE:YTDLP', `Failed to spawn yt-dlp binary for playlist: ${YTDLP_BIN}`, err);
+      reject(new Error(`Failed to launch yt-dlp: ${err.message}. Please verify yt-dlp is installed.`));
+    });
+
+    child.on('close', (code) => {
+      const durationMs = Date.now() - startTime;
+      if (code !== 0) {
+        logger.error('ENGINE:YTDLP', `Playlist probe failed with exit code ${code} in ${durationMs}ms`, stderrData.trim());
+        return reject(new Error(stderrData.trim() || `yt-dlp exited with code ${code}`));
+      }
+
+      try {
+        const raw = JSON.parse(stdoutData.trim());
+        const rawEntries: any[] = Array.isArray(raw.entries) ? raw.entries : [];
+        const videos = rawEntries
+          .filter((e) => e && e.title && e.title !== '[Private video]' && e.title !== '[Deleted video]')
+          .map((e, idx) => ({
+            id: e.id || `video-${idx + 1}`,
+            title: e.title || `Video #${idx + 1}`,
+            url: e.url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : validation.cleanUrl),
+            duration: typeof e.duration === 'number' ? e.duration : undefined,
+            thumbnail: Array.isArray(e.thumbnails) && e.thumbnails.length > 0
+              ? e.thumbnails[e.thumbnails.length - 1].url
+              : (e.id ? `https://i.ytimg.com/vi/${e.id}/mqdefault.jpg` : undefined),
+          }));
+
+        const playlist: PlaylistMetadata = {
+          id: raw.id || 'playlist',
+          title: raw.title || 'YouTube Playlist',
+          platform: 'youtube',
+          url: validation.cleanUrl,
+          videoCount: videos.length,
+          videos,
+        };
+
+        logger.engine('YTDLP', `Playlist parsed successfully in ${durationMs}ms`, {
+          title: playlist.title,
+          videoCount: playlist.videoCount,
+        });
+
+        resolve(playlist);
+      } catch (err: any) {
+        reject(new Error(`Failed to parse playlist data: ${err.message}`));
+      }
+    });
+  });
+}
+
+/**
  * Execute download with progress callbacks
  */
 export function downloadMedia({
@@ -215,6 +316,7 @@ export function downloadMedia({
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
+    ...YTDLP_SPEED_ARGS,
   ];
 
   const ffmpegLocation = getFfmpegLocation();
@@ -296,6 +398,156 @@ export function downloadMedia({
       logger.error('ENGINE:YTDLP', `Job ${jobId} file resolution exception`, err);
       onError(`File resolution error: ${err.message}`);
     }
+  });
+
+  return child;
+}
+
+/**
+ * Execute playlist download with progress tracking and ZIP packaging
+ */
+export function downloadPlaylist({
+  jobId,
+  url,
+  formatId,
+  outputFormat = 'mp4',
+  onProgress,
+  onComplete,
+  onError,
+}: {
+  jobId: string;
+  url: string;
+  formatId: string;
+  outputFormat?: string;
+  onProgress: (percent: number, speed?: string, eta?: string, currentItem?: number, totalItems?: number, currentTitle?: string) => void;
+  onComplete: (filePath: string, filename: string, fileSize: number) => void;
+  onError: (error: string) => void;
+}) {
+  const outDir = getDownloadDirectory();
+  const playlistFolder = path.join(outDir, `${jobId}_playlist`);
+
+  if (!fs.existsSync(playlistFolder)) {
+    fs.mkdirSync(playlistFolder, { recursive: true });
+  }
+
+  const fileTemplate = path.join(playlistFolder, '%(playlist_index)02d - %(title).50s.%(ext)s');
+
+  const args = [
+    '--newline',
+    '--yes-playlist',
+    '--no-warnings',
+    '--no-check-certificates',
+    ...YTDLP_SPEED_ARGS,
+  ];
+
+  const ffmpegLocation = getFfmpegLocation();
+  if (ffmpegLocation) {
+    args.push('--ffmpeg-location', ffmpegLocation);
+  }
+
+  if (outputFormat === 'mp3' || formatId === 'bestaudio/best') {
+    args.push('-x', '--audio-format', 'mp3', '-f', 'bestaudio/best');
+  } else {
+    args.push('-f', formatId || 'bestvideo+bestaudio/best', '--merge-output-format', outputFormat);
+  }
+
+  args.push('-o', fileTemplate, url);
+
+  logger.engine('YTDLP', `Spawning playlist download for job ${jobId}`, {
+    binary: YTDLP_BIN,
+    url,
+    outputFormat,
+    args,
+  });
+
+  const startTime = Date.now();
+  const child = spawn(YTDLP_BIN, args, { windowsHide: true });
+  let lastError = '';
+  let currentItem = 1;
+  let totalItems = 1;
+  let currentTitle = '';
+
+  child.stdout.on('data', (data) => {
+    const text = data.toString();
+    const itemMatch = text.match(/\[download\] Downloading (?:item|video) (\d+) of (\d+)/i);
+    if (itemMatch) {
+      currentItem = parseInt(itemMatch[1], 10);
+      totalItems = parseInt(itemMatch[2], 10);
+    }
+
+    const titleMatch = text.match(/\[download\] Destination: .*[\\/](.+)/);
+    if (titleMatch) {
+      currentTitle = titleMatch[1];
+    }
+
+    const match = text.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\w.]+)\s+at\s+([\w./]+)\s+ETA\s+([\d:]+)/);
+    if (match) {
+      const itemPercent = parseFloat(match[1]);
+      const speed = match[3];
+      const eta = match[4];
+      const overallPercent = totalItems > 0
+        ? Math.min(99, (((currentItem - 1) + (itemPercent / 100)) / totalItems) * 100)
+        : itemPercent;
+
+      onProgress(overallPercent, speed, eta, currentItem, totalItems, currentTitle);
+    }
+  });
+
+  child.stderr.on('data', (data) => {
+    lastError += data.toString();
+  });
+
+  child.on('error', (err) => {
+    logger.error('ENGINE:YTDLP', `Playlist job ${jobId} failed to launch`, err);
+    onError(`Process error: ${err.message}. Is yt-dlp installed and accessible?`);
+  });
+
+  child.on('close', (code) => {
+    const durationMs = Date.now() - startTime;
+    if (code !== 0) {
+      logger.error('ENGINE:YTDLP', `Playlist job ${jobId} exited with error code ${code} in ${durationMs}ms`, lastError.trim());
+      return onError(lastError.trim() || `Download process exited with code ${code}`);
+    }
+
+    // Now zip the playlist folder
+    const zipFilename = `${jobId}_Playlist.zip`;
+    const zipPath = path.join(outDir, zipFilename);
+
+    logger.engine('YTDLP', `Packaging playlist files into ${zipFilename}...`);
+
+    const isWindows = process.platform === 'win32';
+    const zipCmd = isWindows ? 'powershell.exe' : 'zip';
+    const zipArgs = isWindows
+      ? ['-NoProfile', '-Command', `Compress-Archive -Path "${playlistFolder}\\*" -DestinationPath "${zipPath}" -Force`]
+      : ['-r', zipPath, '.'];
+
+    const zipProcess = spawn(zipCmd, zipArgs, isWindows ? { windowsHide: true } : { cwd: playlistFolder });
+
+    zipProcess.on('close', (zipCode) => {
+      if (zipCode === 0 && fs.existsSync(zipPath)) {
+        const stats = fs.statSync(zipPath);
+        try {
+          fs.rmSync(playlistFolder, { recursive: true, force: true });
+        } catch {}
+
+        logger.engine('YTDLP', `Playlist zip package completed (${stats.size} bytes) in ${durationMs}ms`);
+        onComplete(zipPath, zipFilename, stats.size);
+      } else {
+        const files = fs.readdirSync(playlistFolder);
+        if (files.length > 0) {
+          const first = path.join(playlistFolder, files[0]);
+          const stats = fs.statSync(first);
+          onComplete(first, files[0], stats.size);
+        } else {
+          onError('Failed to create ZIP package of the downloaded playlist.');
+        }
+      }
+    });
+
+    zipProcess.on('error', (zipErr) => {
+      logger.error('ENGINE:YTDLP', `ZIP packaging failed for job ${jobId}`, zipErr);
+      onError(`ZIP creation error: ${zipErr.message}`);
+    });
   });
 
   return child;

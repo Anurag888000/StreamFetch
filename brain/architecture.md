@@ -13,7 +13,9 @@
        ▼ (HTTP / SSE)
 [Next.js Route Handlers]
   ├── POST /api/info (Query metadata via yt-dlp --dump-json)
-  ├── POST /api/download (Spawn download process & register job)
+  ├── GET /api/stream (Direct HTTP stream to Chrome via yt-dlp -o -)
+  ├── GET /api/stream-playlist-zip (Direct ZIP stream to Chrome via PKZip streaming)
+  ├── POST /api/download (Spawn background download job)
   ├── GET /api/progress/:jobId (Stream SSE progress events)
   └── GET /api/file/:id (Stream finalized binary to client)
        │

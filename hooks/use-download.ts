@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { VideoMetadata } from '@/types/video';
+import { useState } from 'react';
+import { VideoMetadata, PlaylistMetadata } from '@/types/video';
 import { ProgressPayload } from '@/types/download';
 
 export function useDownload() {
   const [loadingInfo, setLoadingInfo] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [metadata, setMetadata] = useState<VideoMetadata | null>(null);
+  const [playlistMetadata, setPlaylistMetadata] = useState<PlaylistMetadata | null>(null);
+  const [isPlaylist, setIsPlaylist] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<ProgressPayload | null>(null);
 
@@ -15,6 +17,8 @@ export function useDownload() {
     setLoadingInfo(true);
     setError(null);
     setMetadata(null);
+    setPlaylistMetadata(null);
+    setIsPlaylist(false);
     setProgress(null);
 
     try {
@@ -29,7 +33,13 @@ export function useDownload() {
         throw new Error(json.error || 'Failed to fetch video information');
       }
 
-      setMetadata(json.data);
+      if (json.isPlaylist) {
+        setIsPlaylist(true);
+        setPlaylistMetadata(json.data);
+      } else {
+        setIsPlaylist(false);
+        setMetadata(json.data);
+      }
     } catch (err: any) {
       setError(err.message || 'An unexpected error occurred while analyzing URL.');
     } finally {
@@ -37,21 +47,27 @@ export function useDownload() {
     }
   };
 
-  const startDownload = async (url: string, formatId: string, outputFormat: string = 'mp4') => {
+  const startDownload = async (
+    url: string,
+    formatId: string,
+    outputFormat: string = 'mp4',
+    asPlaylist: boolean = false
+  ) => {
     setDownloading(true);
     setError(null);
     setProgress({
       jobId: '',
       percent: 0,
       status: 'queued',
-      message: 'Initializing download...',
+      message: asPlaylist ? 'Initializing playlist download...' : 'Initializing download...',
+      isPlaylist: asPlaylist,
     });
 
     try {
       const res = await fetch('/api/download', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, formatId, outputFormat }),
+        body: JSON.stringify({ url, formatId, outputFormat, isPlaylist: asPlaylist }),
       });
 
       const json = await res.json();
@@ -76,7 +92,7 @@ export function useDownload() {
               // Trigger browser download
               const a = document.createElement('a');
               a.href = data.downloadUrl;
-              a.download = data.filename || 'downloaded-video.mp4';
+              a.download = data.filename || (asPlaylist ? 'playlist.zip' : 'video.mp4');
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
@@ -103,6 +119,8 @@ export function useDownload() {
 
   const reset = () => {
     setMetadata(null);
+    setPlaylistMetadata(null);
+    setIsPlaylist(false);
     setProgress(null);
     setError(null);
   };
@@ -111,6 +129,8 @@ export function useDownload() {
     loadingInfo,
     downloading,
     metadata,
+    playlistMetadata,
+    isPlaylist,
     progress,
     error,
     fetchInfo,

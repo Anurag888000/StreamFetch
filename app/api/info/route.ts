@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { fetchVideoMetadata } from '@/lib/ytdlp';
+import { fetchVideoMetadata, fetchPlaylistMetadata } from '@/lib/ytdlp';
 import { validateVideoUrl } from '@/lib/validators';
 import { logger } from '@/lib/logger';
 
@@ -28,6 +28,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(errRes, { status: 400 });
     }
 
+    if (validation.isPlaylist) {
+      logger.info('API:INFO', `Processing playlist metadata probe for: ${validation.cleanUrl}`);
+      const playlistData = await fetchPlaylistMetadata(validation.cleanUrl);
+      const playlistSummary = {
+        id: playlistData.id,
+        title: playlistData.title,
+        platform: playlistData.platform,
+        videoCount: playlistData.videoCount,
+        isPlaylist: true,
+      };
+
+      logger.response('info', 200, playlistSummary, Date.now() - startTime);
+      return NextResponse.json({ success: true, isPlaylist: true, data: playlistData });
+    }
+
     const data = await fetchVideoMetadata(validation.cleanUrl);
 
     const successSummary = {
@@ -36,10 +51,11 @@ export async function POST(req: NextRequest) {
       platform: data.platform,
       duration: data.duration,
       formatsCount: data.formats.length,
+      isPlaylist: false,
     };
 
     logger.response('info', 200, successSummary, Date.now() - startTime);
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({ success: true, isPlaylist: false, data });
   } catch (error: any) {
     logger.error('API:INFO', 'Failed to retrieve video metadata', error, { url: requestedUrl });
 

@@ -3,8 +3,13 @@ import path from 'path';
 
 /**
  * Enhanced Structured Logger for Video Downloader
- * Supports formatted console output and daily rotating log files in /logs directory.
  * Active ONLY when ENABLE_LOGGING=true (or DEBUG_LOGGING=true) in .env.local / process.env.
+ * Saves clean static log files in /logs directory:
+ *   - api.log
+ *   - error.log
+ *   - engine.log
+ *   - combined.log
+ * Timestamp format: [DD-MM-YYYY HH:MM:SS]
  */
 
 const LOGS_DIR = path.resolve(process.cwd(), 'logs');
@@ -27,12 +32,15 @@ function ensureLogsDir() {
   }
 }
 
-function getLogDateString(): string {
+function formatTimestamp(): string {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = now.getFullYear();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
 }
 
 function appendToLogFile(filename: string, text: string) {
@@ -59,7 +67,7 @@ const colors = {
 
 class Logger {
   private formatLogLine(level: string, tag: string, message: string, data?: any): { consoleStr: string; fileStr: string } {
-    const timestamp = new Date().toISOString();
+    const timestamp = formatTimestamp();
     const cleanData = data !== undefined ? (typeof data === 'string' ? data : JSON.stringify(data, null, 2)) : '';
 
     const fileStr = `[${timestamp}] [${level}] [${tag}] ${message}${cleanData ? ' ' + cleanData : ''}`;
@@ -86,9 +94,8 @@ class Logger {
       payload
     );
     console.log(consoleStr);
-    const dateStr = getLogDateString();
-    appendToLogFile(`api-${dateStr}.log`, fileStr);
-    appendToLogFile(`combined-${dateStr}.log`, fileStr);
+    appendToLogFile('api.log', fileStr);
+    appendToLogFile('combined.log', fileStr);
   }
 
   response(route: string, status: number, payload?: any, durationMs?: number) {
@@ -102,9 +109,8 @@ class Logger {
       payload
     );
     console.log(consoleStr);
-    const dateStr = getLogDateString();
-    appendToLogFile(`api-${dateStr}.log`, fileStr);
-    appendToLogFile(`combined-${dateStr}.log`, fileStr);
+    appendToLogFile('api.log', fileStr);
+    appendToLogFile('combined.log', fileStr);
   }
 
   error(tag: string, message: string, error?: any, context?: any) {
@@ -123,28 +129,27 @@ class Logger {
     const { consoleStr, fileStr } = this.formatLogLine('ERROR', tag.toUpperCase(), message, errData);
     console.error(consoleStr);
 
-    const dateStr = getLogDateString();
-    appendToLogFile(`error-${dateStr}.log`, fileStr);
-    appendToLogFile(`combined-${dateStr}.log`, fileStr);
+    appendToLogFile('error.log', fileStr);
+    appendToLogFile('combined.log', fileStr);
   }
 
   info(tag: string, message: string, data?: any) {
     if (!isLoggingEnabled()) return;
     const { consoleStr, fileStr } = this.formatLogLine('INFO', tag.toUpperCase(), message, data);
     console.log(consoleStr);
-    const dateStr = getLogDateString();
-    appendToLogFile(`combined-${dateStr}.log`, fileStr);
+    if (tag.toUpperCase().startsWith('API')) {
+      appendToLogFile('api.log', fileStr);
+    }
+    appendToLogFile('combined.log', fileStr);
   }
 
   engine(tag: string, message: string, details?: any) {
     if (!isLoggingEnabled()) return;
     const { consoleStr, fileStr } = this.formatLogLine('ENGINE', tag.toUpperCase(), message, details);
     console.log(consoleStr);
-    const dateStr = getLogDateString();
-    appendToLogFile(`engine-${dateStr}.log`, fileStr);
-    appendToLogFile(`combined-${dateStr}.log`, fileStr);
+    appendToLogFile('engine.log', fileStr);
+    appendToLogFile('combined.log', fileStr);
   }
 }
 
 export const logger = new Logger();
-

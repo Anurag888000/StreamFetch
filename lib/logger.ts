@@ -133,6 +133,16 @@ class Logger {
     appendToLogFile('combined.log', fileStr);
   }
 
+  warn(tag: string, message: string, data?: any) {
+    if (!isLoggingEnabled()) return;
+    const { consoleStr, fileStr } = this.formatLogLine('WARN', tag.toUpperCase(), message, data);
+    console.warn(consoleStr);
+    if (tag.toUpperCase().startsWith('API')) {
+      appendToLogFile('api.log', fileStr);
+    }
+    appendToLogFile('combined.log', fileStr);
+  }
+
   info(tag: string, message: string, data?: any) {
     if (!isLoggingEnabled()) return;
     const { consoleStr, fileStr } = this.formatLogLine('INFO', tag.toUpperCase(), message, data);

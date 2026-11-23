@@ -14,6 +14,12 @@ export interface VideoFormat {
   acodec?: string;
 }
 
+export interface SubtitleTrack {
+  code: string;
+  name: string;
+  isAuto?: boolean;
+}
+
 export interface VideoMetadata {
   id: string;
   title: string;
@@ -26,6 +32,7 @@ export interface VideoMetadata {
   platform: Platform;
   url: string;
   formats: VideoFormat[];
+  subtitles?: SubtitleTrack[];
 }
 
 export interface PlaylistVideoSummary {

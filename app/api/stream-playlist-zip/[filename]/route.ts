@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
-import { fetchPlaylistMetadata, YTDLP_SPEED_ARGS } from '@/lib/ytdlp';
+import { fetchPlaylistMetadata, YTDLP_SPEED_ARGS, getCookieArgs } from '@/lib/ytdlp';
 import { validateVideoUrl } from '@/lib/validators';
 import { sanitizeFilename } from '@/lib/utils';
 import { StreamingZip } from '@/lib/zip-stream';
@@ -73,7 +73,7 @@ export async function GET(
 
   const searchParams = req.nextUrl.searchParams;
   const rawUrl = searchParams.get('url');
-  const formatId = searchParams.get('formatId') || 'bestvideo+bestaudio/best';
+  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
   const outputFormat = searchParams.get('outputFormat') || 'mp4';
   const selectedIdsParam = searchParams.get('selectedIds');
 
@@ -170,6 +170,9 @@ export async function GET(
         } catch {}
       }
 
+      const failedVideos: Array<{ title: string; reason: string }> = [];
+      let successfulVideoCount = 0;
+
       for (let i = 0; i < targetVideos.length; i++) {
         if (isAborted || isClosed) break;
 
@@ -178,15 +181,13 @@ export async function GET(
         const ext = outputFormat === 'mp3' ? 'mp3' : 'mp4';
         const videoFilename = `${indexStr} - ${sanitizeFilename(video.title)}.${ext}`;
 
-        const localHeader = zip.startFile(videoFilename);
-        safeEnqueue(new Uint8Array(localHeader));
-
         const args = [
           '-o', '-',
           '--no-playlist',
           '--no-warnings',
           '--no-check-certificates',
           ...YTDLP_SPEED_ARGS,
+          ...getCookieArgs(),
         ];
 
         if (ffmpegLocation) {
@@ -201,14 +202,29 @@ export async function GET(
 
         args.push(video.url);
 
+        let fileHeaderWritten = false;
+        let stderrOutput = '';
+        let bytesReceived = 0;
+
         await new Promise<void>((resolve) => {
           const child = spawn(YTDLP_BIN, args, { windowsHide: true });
           activeChild = child;
 
           child.stdout.on('data', (chunk: Buffer) => {
             if (isAborted) return;
+            // Defer writing local file header until actual media data arrives
+            if (!fileHeaderWritten) {
+              fileHeaderWritten = true;
+              const localHeader = zip.startFile(videoFilename);
+              safeEnqueue(new Uint8Array(localHeader));
+            }
+            bytesReceived += chunk.length;
             zip.processChunk(chunk);
             safeEnqueue(new Uint8Array(chunk));
+          });
+
+          child.stderr.on('data', (errChunk: Buffer) => {
+            stderrOutput += errChunk.toString();
           });
 
           child.on('error', (err) => {
@@ -216,16 +232,75 @@ export async function GET(
             resolve();
           });
 
-          child.on('close', () => {
+          child.on('close', (code) => {
             activeChild = null;
+            if (code !== 0 || bytesReceived === 0) {
+              const isBotBlock =
+                stderrOutput.includes('Sign in to confirm you') ||
+                stderrOutput.includes('bot') ||
+                stderrOutput.includes('LOGIN_REQUIRED') ||
+                stderrOutput.includes('DPAPI');
+
+              const reason = isBotBlock
+                ? 'YouTube Bot/Login Protection: Sign in or browser cookies required'
+                : (stderrOutput.trim().split('\n').filter(Boolean).pop() || `Process exited with code ${code}`);
+
+              logger.warn('API:STREAM_ZIP', `Video stream failed [id=${video.id}, code=${code}]: ${reason}`);
+              failedVideos.push({ title: video.title, reason });
+            } else {
+              successfulVideoCount++;
+            }
             resolve();
           });
         });
 
         if (isAborted) break;
 
-        const descriptor = zip.endFile();
-        safeEnqueue(new Uint8Array(descriptor));
+        // Only seal and write descriptor if file header was actually emitted
+        if (fileHeaderWritten) {
+          const descriptor = zip.endFile();
+          safeEnqueue(new Uint8Array(descriptor));
+        }
+      }
+
+      // If any videos failed, append a helpful diagnostic README text file inside the ZIP
+      if (failedVideos.length > 0 && !isAborted && !isClosed) {
+        const noticeHeader = zip.startFile('README_DOWNLOAD_NOTICE.txt');
+        safeEnqueue(new Uint8Array(noticeHeader));
+
+        const noticeLines = [
+          '========================================================================',
+          'STREAMFETCH DOWNLOAD NOTICE',
+          '========================================================================',
+          `Downloaded: ${successfulVideoCount} of ${targetVideos.length} items successfully.`,
+          `Failed: ${failedVideos.length} item(s) could not be downloaded.`,
+          '',
+          'FAILED ITEMS & REASONS:',
+          ...failedVideos.map((f, idx) => `  ${idx + 1}. ${f.title}\n     Reason: ${f.reason}`),
+          '',
+          'HOW TO SOLVE YOUTUBE BOT / LOGIN PROTECTION:',
+          '------------------------------------------------------------------------',
+          '1. Open StreamFetch in your browser (http://localhost:3000).',
+          '2. Click the Cookie / Settings icon (gear/shield) in the top right header.',
+          '3. Choose one of the following methods:',
+          '   Method A (Recommended for Chrome / Edge):',
+          '     - Install the free "Get cookies.txt LOCALLY" extension in Chrome/Edge.',
+          '     - Open YouTube.com and ensure you are logged in.',
+          '     - Click the extension icon and click "Export" to copy/download cookies.',
+          '     - Paste the cookies into StreamFetch Settings and save.',
+          '   Method B (Using Firefox):',
+          '     - Open Mozilla Firefox, log into YouTube.',
+          '     - In StreamFetch Settings, select "Mozilla Firefox".',
+          '4. Click Download again to retrieve all protected videos in Full 1080p.',
+          '========================================================================',
+        ];
+
+        const noticeBuffer = Buffer.from(noticeLines.join('\r\n'), 'utf-8');
+        zip.processChunk(noticeBuffer);
+        safeEnqueue(new Uint8Array(noticeBuffer));
+
+        const noticeDescriptor = zip.endFile();
+        safeEnqueue(new Uint8Array(noticeDescriptor));
       }
 
       if (!isAborted && !isClosed) {

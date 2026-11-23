@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import { VideoFormat, VideoMetadata, PlaylistMetadata } from '@/types/video';
+import { VideoFormat, VideoMetadata, PlaylistMetadata, SubtitleTrack } from '@/types/video';
 import { validateVideoUrl } from './validators';
 import { sanitizeFilename } from './utils';
 import { logger } from './logger';
@@ -55,14 +55,66 @@ export function getDownloadDirectory(): string {
  * - 8 concurrent fragment connections (--concurrent-fragments 8)
  * - 10MB HTTP chunk size to bypass YouTube rate pacing (--http-chunk-size 10M)
  * - 1024KB I/O buffer to minimize system context switches (--buffer-size 1024K)
- * - Android player client spoofing for uncapped CDN ratebypass (--extractor-args "youtube:player_client=android,web")
+ * - Node.js JavaScript runtime to solve YouTube JS challenges (--js-runtimes node)
  */
 export const YTDLP_SPEED_ARGS: string[] = [
   '--concurrent-fragments', '8',
   '--http-chunk-size', '10M',
   '--buffer-size', '1024K',
-  '--extractor-args', 'youtube:player_client=android,web',
+  '--js-runtimes', 'node',
 ];
+
+/**
+ * Resolve cookie flags for yt-dlp.
+ * Checks in order:
+ * 1. Project root / .tmp cookies.txt file
+ * 2. YTDLP_COOKIES_BROWSER env var (e.g. "chrome", "edge", "firefox", "brave")
+ * 3. YTDLP_COOKIES_FILE env var
+ */
+export function getCookieArgs(): string[] {
+  const customFile = process.env.YTDLP_COOKIES_FILE;
+  if (customFile && fs.existsSync(customFile)) {
+    return ['--cookies', path.resolve(customFile)];
+  }
+
+  // Check .tmp/cookies.txt in cwd and parent
+  const possibleCookieFiles = [
+    path.resolve(process.cwd(), '.tmp', 'cookies.txt'),
+    path.resolve(process.cwd(), 'cookies.txt'),
+    path.resolve(process.cwd(), '..', '.tmp', 'cookies.txt'),
+    path.resolve(process.cwd(), '..', 'cookies.txt'),
+  ];
+
+  for (const cFile of possibleCookieFiles) {
+    if (fs.existsSync(cFile) && fs.statSync(cFile).size > 0) {
+      return ['--cookies', cFile];
+    }
+  }
+
+  // Check config file in cwd and parent
+  const possibleConfigFiles = [
+    path.resolve(process.cwd(), '.tmp', 'cookies_config.json'),
+    path.resolve(process.cwd(), '..', '.tmp', 'cookies_config.json'),
+  ];
+
+  for (const cfgFile of possibleConfigFiles) {
+    if (fs.existsSync(cfgFile)) {
+      try {
+        const parsed = JSON.parse(fs.readFileSync(cfgFile, 'utf-8'));
+        if (parsed.browser && ['chrome', 'edge', 'firefox', 'brave', 'opera', 'chromium'].includes(parsed.browser.toLowerCase())) {
+          return ['--cookies-from-browser', parsed.browser.toLowerCase()];
+        }
+      } catch {}
+    }
+  }
+
+  const browser = (process.env.YTDLP_COOKIES_BROWSER || '').trim().toLowerCase();
+  if (browser && ['chrome', 'edge', 'firefox', 'brave', 'opera', 'chromium'].includes(browser)) {
+    return ['--cookies-from-browser', browser];
+  }
+
+  return [];
+}
 
 /**
  * Fetch video metadata via yt-dlp --dump-json
@@ -78,7 +130,8 @@ export async function fetchVideoMetadata(rawUrl: string): Promise<VideoMetadata>
     '--no-playlist',
     '--no-warnings',
     '--no-check-certificates',
-    '--extractor-args', 'youtube:player_client=android,web',
+    '--js-runtimes', 'node',
+    ...getCookieArgs(),
     validation.cleanUrl,
   ];
 
@@ -139,6 +192,23 @@ export async function fetchVideoMetadata(rawUrl: string): Promise<VideoMetadata>
         // Deduplicate & sort formats nicely
         const uniqueFormats = consolidateFormats(formats);
 
+        // Extract available subtitles & captions
+        const subtitles: SubtitleTrack[] = [];
+        const seenSubs = new Set<string>();
+
+        const extractSubs = (subDict: any, isAuto: boolean) => {
+          if (!subDict || typeof subDict !== 'object') return;
+          for (const [code, list] of Object.entries(subDict)) {
+            if (seenSubs.has(code)) continue;
+            seenSubs.add(code);
+            const name = Array.isArray(list) && list[0]?.name ? list[0].name : code.toUpperCase();
+            subtitles.push({ code, name, isAuto });
+          }
+        };
+
+        extractSubs(raw.subtitles, false);
+        extractSubs(raw.automatic_captions, true);
+
         const metadata: VideoMetadata = {
           id: raw.id,
           title: raw.title || 'Untitled Video',
@@ -151,6 +221,7 @@ export async function fetchVideoMetadata(rawUrl: string): Promise<VideoMetadata>
           platform: validation.platform,
           url: validation.cleanUrl,
           formats: uniqueFormats,
+          subtitles: subtitles.length > 0 ? subtitles : undefined,
         };
 
         resolve(metadata);
@@ -216,7 +287,8 @@ export async function fetchPlaylistMetadata(rawUrl: string): Promise<PlaylistMet
     '--dump-single-json',
     '--no-warnings',
     '--no-check-certificates',
-    '--extractor-args', 'youtube:player_client=android,web',
+    '--js-runtimes', 'node',
+    ...getCookieArgs(),
     validation.cleanUrl,
   ];
 
@@ -317,6 +389,7 @@ export function downloadMedia({
     '--no-warnings',
     '--no-check-certificates',
     ...YTDLP_SPEED_ARGS,
+    ...getCookieArgs(),
   ];
 
   const ffmpegLocation = getFfmpegLocation();
@@ -438,6 +511,7 @@ export function downloadPlaylist({
     '--no-warnings',
     '--no-check-certificates',
     ...YTDLP_SPEED_ARGS,
+    ...getCookieArgs(),
   ];
 
   const ffmpegLocation = getFfmpegLocation();

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- Removed TikTok and X (Twitter) platform chips and references from `components/layout/header.tsx`, `app/page.tsx`, and `components/download/url-input.tsx`. Retained clean focus on YouTube, Instagram, and Facebook.
+
 ### Changed
 - **Complete Professional UI/UX Overhaul**:
   - Replaced generic AI/neon template aesthetics with an obsidian carbon palette (`#09090b`), clean subtle surfaces (`bg-neutral-900/80`), and crisp borders (`border-neutral-800`).
@@ -17,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Streamlined `components/download/playlist-card.tsx` to ZIP-only download mode: removed individual video MP4/MP3 buttons and batch download buttons in favor of a single prominent full-width **"Download Videos as ZIP in IDM / Chrome"** action button.
 
 ### Fixed
+- **Fixed Modal Height Overflow & Background Scroll Lock**:
+  - `components/settings/settings-modal.tsx`: Restructured modal with `max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden`. Pinned Header and Footer with `shrink-0` and placed settings content inside a dedicated `overflow-y-auto min-h-0 flex-1` container, guaranteeing action buttons (`Reset Settings`, `Cancel`, `Save & Apply`) are always visible and never cut off.
+  - Implemented background scroll locking (`document.body.style.overflow = 'hidden'`) across both `settings-modal.tsx` and `history-drawer.tsx` when open, restoring standard scrolling on close.
+- **Eliminated 0-Byte Corrupt ZIP Files in Playlist and Batch Streaming**:
+  - Fixed premature ZIP local file header writing in `app/api/stream-playlist-zip/[filename]/route.ts` and `app/api/stream-batch-zip/[filename]/route.ts`: deferred `zip.startFile()` so that file entry headers are only emitted once the first actual media byte arrives from `child.stdout`. This completely eliminates the bug where failed videos emitted 0-byte entries resulting in 544-byte empty ZIP archives.
+  - Added full `child.stderr` capture and non-zero exit code inspection to identify YouTube bot challenges (`Sign in to confirm you're not a bot`, `LOGIN_REQUIRED`, or DPAPI decryption errors).
+  - Integrated dynamic `README_DOWNLOAD_NOTICE.txt` packaging into ZIP archives when any video cannot be downloaded, informing the user of the exact blocked titles and providing step-by-step instructions to unlock them using cookies.
+  - Enhanced `getCookieArgs()` in `lib/ytdlp.ts` to search for `cookies.txt` and `cookies_config.json` across both current working directory and root workspaces.
+  - Enhanced `components/settings/settings-modal.tsx` with a direct file upload input for Netscape `cookies.txt` and actionable guidance for Windows DPAPI locks and Firefox session usage.
+  - Added helpful status tips in `components/download/playlist-card.tsx` and `components/download/batch-card.tsx` directing users to Settings if YouTube triggers bot verification.
+  - Added missing `warn` method to structured `Logger` class in `lib/logger.ts`.
+- **Fixed Low-Quality (360p) Fallback in Playlist ZIP and Video Downloads**:
+  - Removed `--extractor-args "youtube:player_client=android,web"` from `YTDLP_SPEED_ARGS`, `fetchVideoMetadata`, and `fetchPlaylistMetadata` which triggered YouTube's SABR experiment, causing yt-dlp to skip all 1080p and 720p streams.
+  - Added `--js-runtimes node` enabling yt-dlp to solve YouTube JavaScript player challenges cleanly via Node.js v26 without bot warnings or signature failures.
+  - Updated playlist format selector presets in `components/download/playlist-card.tsx` to explicitly select AVC1/H.264 video with AAC audio (`bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/...`), preventing FFmpeg pipe muxing errors on Opus/AV1 in MPEG-TS stdout streams and ensuring guaranteed 1080p Full HD video streams.
+  - Synchronized default format fallback in `app/api/stream/[filename]/route.ts` and `app/api/stream-playlist-zip/[filename]/route.ts` to 1080p AVC1+AAC.
 - Fixed logger to use static, clean filenames without dates (`api.log`, `error.log`, `engine.log`, `combined.log`) and formatted in-log timestamps as `[DD-MM-YYYY HH:MM:SS]`.
 - Fixed uncaught exception `TypeError: Invalid state: Controller is already closed` (`ERR_INVALID_STATE`) across all stream endpoints by implementing stream lifecycle state trackers (`isClosed`) and safe `safeEnqueue`, `safeClose`, and `safeError` wrappers.
 - Fixed duplicate trailing return block in `hooks/use-download.ts` that caused compilation failure.
@@ -24,6 +43,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed IDM `Resume capability: (unknown)` by implementing HTTP `HEAD` handlers, `Range` headers, `ETag`, `Last-Modified`, and `206 Partial Content` responses across single video (`/api/stream/[filename]`) and playlist ZIP (`/api/stream-playlist-zip/[filename]`) endpoints.
 
 ### Added
+- **Playlist Enhancements: Individual Video Downloads, List/Grid View Modes & Fullscreen Studio Mode**:
+  - `components/download/playlist-card.tsx`:
+    - Added direct individual download button on every track in the playlist, enabling users to download any specific video directly in Full HD (MP4/MP3) via IDM or Chrome without needing to uncheck other tracks.
+    - Added List View vs Grid View mode switcher (`LayoutList` / `LayoutGrid`): List view offers sleek Spotify-style numbered rows, while Grid view renders a responsive 16:9 card grid with duration badges and action buttons.
+    - Added Fullscreen Studio Mode (`Maximize2` / `Minimize2`): Expands the playlist into an immersive full-height studio view with real-time title search filtering, bulk selection controls, responsive tracklist, and persistent bottom ZIP action bar.
+    - Automated background scroll locking (`document.body.style.overflow = 'hidden'`) during Fullscreen studio view.
+- **Subtitles (.SRT / .VTT) Downloader**:
+  - `app/api/subtitles/route.ts`: Instant subtitle extraction and conversion endpoint streaming clean `.srt` tracks with proper content disposition.
+  - `components/download/video-card.tsx`: Integrated Subtitles button and dropdown displaying all available official and automatic subtitle tracks for the video.
+- **Anti-Bot & Age-Restricted Cookie Session Manager**:
+  - `components/settings/settings-modal.tsx`: Interactive modal allowing users to select browser cookie sessions (Chrome, Edge, Brave, Firefox) or paste Netscape `cookies.txt` to bypass bot checks, rate limits, and age restrictions.
+  - `app/api/settings/cookies/route.ts`: Secure cookie preference management endpoint persisting settings in `.tmp/cookies_config.json` and `.tmp/cookies.txt`.
+  - `lib/ytdlp.ts`: Added `getCookieArgs()` dynamically injecting active cookies across all probe, download, and stream operations.
+- **Multi-URL Batch Downloader & Streaming ZIP Packager**:
+  - `components/download/url-input.tsx`: Added segmented mode switcher (`Single / Playlist` vs `Multi-URL Batch`) with multi-line textarea input.
+  - `components/download/batch-card.tsx`: Dedicated batch inspector displaying queued URLs with format quality presets (1080p FHD, 720p HD, 480p SD, MP3) and full-width streaming ZIP action.
+  - `app/api/stream-batch-zip/[filename]/route.ts`: High-speed batch ZIP streaming endpoint packaging arbitrary multiple video URLs sequentially into a single `.zip` archive on the fly with IDM pause/resume support.
+- **Client-Side Download History Drawer**:
+  - `components/history/history-drawer.tsx`: Slide-over drawer persisting recent downloads in `localStorage` with thumbnails, format tags, relative time, 1-click download, copy link, and clear history actions.
+  - `components/layout/header.tsx`: Added interactive History trigger button with live download count badge and Settings trigger button.
 - **yt-dlp High-Speed Engine Optimizations (`YTDLP_SPEED_ARGS`)**:
   - Injected `--concurrent-fragments 8` across all single video and playlist streams, enabling 8 parallel fragment downloads concurrently.
   - Configured `--http-chunk-size 10M` and `--buffer-size 1024K` to bypass YouTube rate-limiting and buffer throttling.

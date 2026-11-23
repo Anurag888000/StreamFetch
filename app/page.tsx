@@ -4,6 +4,7 @@ import { useState } from 'react';
 import UrlInput from '@/components/download/url-input';
 import VideoCard from '@/components/download/video-card';
 import PlaylistCard from '@/components/download/playlist-card';
+import BatchCard from '@/components/download/batch-card';
 import { useDownload } from '@/hooks/use-download';
 import {
   Play,
@@ -30,11 +31,11 @@ export default function Home() {
     startDownload,
   } = useDownload();
 
+  const [batchUrls, setBatchUrls] = useState<string[] | null>(null);
+
   const platforms = [
     { id: 'youtube', name: 'YouTube', icon: Play, color: 'text-red-400', badge: 'Videos, Shorts & Playlists' },
     { id: 'instagram', name: 'Instagram', icon: Camera, color: 'text-pink-400', badge: 'Reels & Stories' },
-    { id: 'twitter', name: 'X / Twitter', icon: MessageCircle, color: 'text-sky-400', badge: 'HD Videos' },
-    { id: 'tiktok', name: 'TikTok', icon: Video, color: 'text-cyan-400', badge: 'No-Watermark Media' },
     { id: 'facebook', name: 'Facebook', icon: ThumbsUp, color: 'text-blue-400', badge: 'Watch & Reels' },
   ];
 
@@ -63,8 +64,24 @@ export default function Home() {
 
         {/* Input Command Bar */}
         <div className="mx-auto max-w-2xl">
-          <UrlInput onSubmit={(url) => fetchInfo(url)} isLoading={loadingInfo} />
+          <UrlInput
+            onSubmit={(url) => {
+              setBatchUrls(null);
+              fetchInfo(url);
+            }}
+            onBatchSubmit={(urls) => {
+              setBatchUrls(urls);
+            }}
+            isLoading={loadingInfo}
+          />
         </div>
+
+        {/* Multi-URL Batch Card */}
+        {batchUrls && batchUrls.length > 0 && (
+          <div className="mx-auto mt-8 max-w-3xl text-left">
+            <BatchCard urls={batchUrls} onReset={() => setBatchUrls(null)} />
+          </div>
+        )}
 
         {/* Error notification */}
         {error && (
@@ -111,7 +128,7 @@ export default function Home() {
             Supported Media Platforms
           </p>
 
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl mx-auto">
             {platforms.map((p) => {
               const Icon = p.icon;
               return (

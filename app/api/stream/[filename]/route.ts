@@ -5,7 +5,7 @@ import fs from 'fs';
 import { validateVideoUrl } from '@/lib/validators';
 import { sanitizeFilename } from '@/lib/utils';
 import { logger } from '@/lib/logger';
-import { YTDLP_SPEED_ARGS } from '@/lib/ytdlp';
+import { YTDLP_SPEED_ARGS, getCookieArgs } from '@/lib/ytdlp';
 
 export const dynamic = 'force-dynamic';
 
@@ -85,7 +85,7 @@ export async function GET(
 
   const searchParams = req.nextUrl.searchParams;
   const rawUrl = searchParams.get('url');
-  const formatId = searchParams.get('formatId') || 'bestvideo+bestaudio/best';
+  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
   const customOutputFormat = searchParams.get('outputFormat');
   const customSizeStr = searchParams.get('size');
   const durationParam = searchParams.get('duration');
@@ -139,6 +139,7 @@ export async function GET(
     '--no-warnings',
     '--no-check-certificates',
     ...YTDLP_SPEED_ARGS,
+    ...getCookieArgs(),
   ];
 
   const ffmpegLocation = getFfmpegLocation();

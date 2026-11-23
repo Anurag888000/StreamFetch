@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Streamlined `components/download/playlist-card.tsx` to ZIP-only download mode: removed individual video MP4/MP3 buttons and batch download buttons in favor of a single prominent full-width **"Download Videos as ZIP in IDM / Chrome"** action button.
 
 ### Fixed
+- **Fixed Playlist Header Button Alignment & Text Wrapping**:
+  - `components/download/playlist-card.tsx`: Enforced uniform `h-9` height, `px-3` horizontal padding, `whitespace-nowrap`, and `shrink-0` across all quick action buttons (`Copy ZIP Link`, `Select All / Deselect All`, and `Fullscreen`).
+  - Completely eliminated multi-line text wrapping and mismatched button heights.
+  - Granted `min-w-0 flex-1` with clean text truncation to the playlist/channel title container, giving titles ample breathing space.
 - **Fixed Modal Height Overflow & Background Scroll Lock**:
   - `components/settings/settings-modal.tsx`: Restructured modal with `max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden`. Pinned Header and Footer with `shrink-0` and placed settings content inside a dedicated `overflow-y-auto min-h-0 flex-1` container, guaranteeing action buttons (`Reset Settings`, `Cancel`, `Save & Apply`) are always visible and never cut off.
   - Implemented background scroll locking (`document.body.style.overflow = 'hidden'`) across both `settings-modal.tsx` and `history-drawer.tsx` when open, restoring standard scrolling on close.
@@ -43,6 +47,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed IDM `Resume capability: (unknown)` by implementing HTTP `HEAD` handlers, `Range` headers, `ETag`, `Last-Modified`, and `206 Partial Content` responses across single video (`/api/stream/[filename]`) and playlist ZIP (`/api/stream-playlist-zip/[filename]`) endpoints.
 
 ### Added
+- **YouTube Channel & User Latest Uploads Downloader**:
+  - `lib/validators.ts`: Added YouTube Channel detection matching handles (`/@handle`), custom URLs (`/c/name`), channel IDs (`/channel/UC...`), and user URLs, auto-normalizing paths to `/videos` tab.
+  - `lib/ytdlp.ts`: Added high-speed channel uploads probing with `--playlist-end 30`, fetching the channel's latest 30 videos in under 4 seconds along with channel avatars, banners, follower counts, and uploader names.
+  - `components/download/playlist-card.tsx`: Integrated channel branding displaying circular channel avatar, verified channel badges, formatted subscriber counts (`307K subscribers`), and "YouTube Channel Uploads" chip.
+  - `components/download/url-input.tsx`: Added live dynamic Channel badge indicator with `Tv` icon and updated input placeholder to guide channel link pasting.
 - **Playlist Enhancements: Individual Video Downloads, List/Grid View Modes & Fullscreen Studio Mode**:
   - `components/download/playlist-card.tsx`:
     - Added direct individual download button on every track in the playlist, enabling users to download any specific video directly in Full HD (MP4/MP3) via IDM or Chrome without needing to uncheck other tracks.

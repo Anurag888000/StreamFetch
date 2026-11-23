@@ -19,6 +19,7 @@ import {
   Minimize2,
   Search,
   X,
+  Tv,
 } from 'lucide-react';
 import ProgressBar from './progress-bar';
 import { saveToHistory } from '@/components/history/history-drawer';
@@ -289,32 +290,49 @@ export default function PlaylistCard({
     <>
       <div className="w-full rounded-2xl bg-neutral-900/90 border border-neutral-800 p-5 sm:p-6 shadow-2xl backdrop-blur-xl space-y-6">
         {/* Header Info */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-800/80 pb-5">
-          <div className="flex items-center gap-3.5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-black shadow-sm shrink-0">
-              <FolderArchive className="h-5 w-5 stroke-[2.2]" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="rounded-md bg-neutral-800 border border-neutral-700/60 px-2 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wider text-neutral-300">
-                  YouTube Playlist
-                </span>
-                <span className="text-xs font-mono text-neutral-400">
-                  {playlist.videoCount} {playlist.videoCount === 1 ? 'track' : 'tracks'}
-                </span>
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-neutral-800/80 pb-5">
+          <div className="flex items-center gap-3.5 min-w-0 flex-1">
+            {playlist.channelAvatar ? (
+              <div className="h-12 w-12 rounded-full overflow-hidden border-2 border-neutral-700 shrink-0 bg-neutral-800">
+                <img src={playlist.channelAvatar} alt="" className="h-full w-full object-cover" />
               </div>
-              <h2 className="text-lg sm:text-xl font-semibold text-white mt-1 line-clamp-1">
+            ) : (
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-black shadow-sm shrink-0">
+                {playlist.isChannel ? <Tv className="h-5 w-5 stroke-[2.2]" /> : <FolderArchive className="h-5 w-5 stroke-[2.2]" />}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-neutral-800 border border-neutral-700/60 px-2 py-0.5 text-[10px] font-mono font-medium uppercase tracking-wider text-neutral-300 whitespace-nowrap">
+                  {playlist.isChannel ? 'YouTube Channel Uploads' : 'YouTube Playlist'}
+                </span>
+                <span className="text-xs font-mono text-neutral-400 whitespace-nowrap">
+                  {playlist.isChannel ? `Latest ${playlist.videoCount} uploads` : `${playlist.videoCount} ${playlist.videoCount === 1 ? 'track' : 'tracks'}`}
+                </span>
+                {playlist.channelFollowers ? (
+                  <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2 py-0.5 rounded-md hidden sm:inline-block whitespace-nowrap">
+                    {typeof playlist.channelFollowers === 'number'
+                      ? `${(playlist.channelFollowers >= 1000000
+                          ? (playlist.channelFollowers / 1000000).toFixed(1) + 'M'
+                          : playlist.channelFollowers >= 1000
+                          ? (playlist.channelFollowers / 1000).toFixed(0) + 'K'
+                          : playlist.channelFollowers)} subscribers`
+                      : playlist.channelFollowers}
+                  </span>
+                ) : null}
+              </div>
+              <h2 className="text-base sm:text-lg lg:text-xl font-semibold text-white mt-1 truncate" title={playlist.title}>
                 {playlist.title}
               </h2>
             </div>
           </div>
 
           {/* Quick actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
             <button
               type="button"
               onClick={copyZipLink}
-              className="flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 px-3 py-2 rounded-xl border border-neutral-700/60 transition-colors"
+              className="h-9 px-3 whitespace-nowrap shrink-0 flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 rounded-xl border border-neutral-700/60 transition-colors"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-neutral-400" />}
               <span>{copied ? 'Copied' : 'Copy ZIP Link'}</span>
@@ -324,7 +342,7 @@ export default function PlaylistCard({
               type="button"
               onClick={toggleSelectAll}
               disabled={downloading}
-              className="flex items-center gap-2 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 px-3.5 py-2 rounded-xl border border-neutral-700/60 transition-colors disabled:opacity-50"
+              className="h-9 px-3 whitespace-nowrap shrink-0 flex items-center gap-2 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 rounded-xl border border-neutral-700/60 transition-colors disabled:opacity-50"
             >
               {allSelected ? (
                 <>
@@ -337,7 +355,7 @@ export default function PlaylistCard({
                   <span>Select All</span>
                 </>
               )}
-              <span className="ml-1 text-[11px] text-neutral-400 font-mono">
+              <span className="text-[11px] text-neutral-400 font-mono">
                 ({selectedIds.size}/{playlist.videos.length})
               </span>
             </button>
@@ -345,11 +363,11 @@ export default function PlaylistCard({
             <button
               type="button"
               onClick={() => setIsFullscreen(true)}
-              className="flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 p-2 sm:px-3 rounded-xl border border-neutral-700/60 transition-colors"
+              className="h-9 px-3 whitespace-nowrap shrink-0 flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-800/80 hover:bg-neutral-700/80 rounded-xl border border-neutral-700/60 transition-colors"
               title="Expand playlist into full screen studio view"
             >
               <Maximize2 className="h-3.5 w-3.5 text-neutral-300" />
-              <span className="hidden sm:inline">Fullscreen</span>
+              <span>Fullscreen</span>
             </button>
           </div>
         </div>
@@ -536,15 +554,21 @@ export default function PlaylistCard({
           {/* Studio Header */}
           <div className="flex items-center justify-between border-b border-neutral-800/80 px-4 sm:px-6 py-3.5 shrink-0 bg-[#09090b]">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shrink-0">
-                <FolderArchive className="h-4 w-4" />
-              </div>
+              {playlist.channelAvatar ? (
+                <div className="h-9 w-9 rounded-full overflow-hidden border border-neutral-700 shrink-0 bg-neutral-800">
+                  <img src={playlist.channelAvatar} alt="" className="h-full w-full object-cover" />
+                </div>
+              ) : (
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-black shrink-0">
+                  {playlist.isChannel ? <Tv className="h-4 w-4" /> : <FolderArchive className="h-4 w-4" />}
+                </div>
+              )}
               <div className="min-w-0">
                 <h2 className="text-sm sm:text-base font-semibold text-white truncate">
                   {playlist.title}
                 </h2>
                 <p className="text-[11px] font-mono text-neutral-400">
-                  {selectedIds.size} of {playlist.videos.length} tracks selected for ZIP
+                  {playlist.isChannel ? 'Channel Uploads • ' : ''}{selectedIds.size} of {playlist.videos.length} tracks selected for ZIP
                 </p>
               </div>
             </div>
@@ -594,7 +618,7 @@ export default function PlaylistCard({
               <button
                 type="button"
                 onClick={toggleSelectAll}
-                className="flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-850 px-3 py-1.5 rounded-lg border border-neutral-750 transition-colors"
+                className="h-9 px-3 whitespace-nowrap shrink-0 flex items-center gap-1.5 text-xs font-medium text-neutral-300 hover:text-white bg-neutral-850 rounded-lg border border-neutral-750 transition-colors"
               >
                 {allSelected ? <CheckSquare className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                 <span className="hidden sm:inline">{allSelected ? 'Deselect All' : 'Select All'}</span>
@@ -604,7 +628,7 @@ export default function PlaylistCard({
               <button
                 type="button"
                 onClick={() => setIsFullscreen(false)}
-                className="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+                className="h-9 w-9 flex items-center justify-center shrink-0 rounded-lg text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
                 title="Exit Fullscreen"
               >
                 <X className="h-5 w-5" />

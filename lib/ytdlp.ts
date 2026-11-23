@@ -276,11 +276,13 @@ function consolidateFormats(formats: VideoFormat[]): VideoFormat[] {
 /**
  * Fetch YouTube playlist metadata via yt-dlp --flat-playlist --dump-single-json
  */
-export async function fetchPlaylistMetadata(rawUrl: string): Promise<PlaylistMetadata> {
+export async function fetchPlaylistMetadata(rawUrl: string, limit: number = 30): Promise<PlaylistMetadata> {
   const validation = validateVideoUrl(rawUrl);
   if (!validation.valid) {
     throw new Error(validation.error || 'Invalid URL');
   }
+
+  const isChannel = Boolean(validation.isChannel);
 
   const args = [
     '--flat-playlist',
@@ -289,10 +291,16 @@ export async function fetchPlaylistMetadata(rawUrl: string): Promise<PlaylistMet
     '--no-check-certificates',
     '--js-runtimes', 'node',
     ...getCookieArgs(),
-    validation.cleanUrl,
   ];
 
-  logger.engine('YTDLP', `Executing playlist probe for ${validation.cleanUrl}`, {
+  // For channels or large playlists, limit to latest 30-50 uploads for rapid response
+  if (isChannel) {
+    args.push('--playlist-end', String(limit));
+  }
+
+  args.push(validation.cleanUrl);
+
+  logger.engine('YTDLP', `Executing ${isChannel ? 'channel' : 'playlist'} probe for ${validation.cleanUrl}`, {
     binary: YTDLP_BIN,
     args,
   });
@@ -338,18 +346,35 @@ export async function fetchPlaylistMetadata(rawUrl: string): Promise<PlaylistMet
               : (e.id ? `https://i.ytimg.com/vi/${e.id}/mqdefault.jpg` : undefined),
           }));
 
+        // Find channel avatar if available
+        let channelAvatar: string | undefined;
+        if (Array.isArray(raw.thumbnails)) {
+          const avatarEntry =
+            raw.thumbnails.find((t: any) => t.id === 'avatar_uncropped') ||
+            raw.thumbnails.find((t: any) => t.width && t.height && t.width === t.height) ||
+            raw.thumbnails.find((t: any) => typeof t.url === 'string' && t.url.includes('=s'));
+          if (avatarEntry) channelAvatar = avatarEntry.url;
+        }
+
+        const detectedIsChannel = isChannel || Boolean(raw.channel && (raw.uploader_id?.startsWith('@') || raw.webpage_url_basename === 'videos'));
+
         const playlist: PlaylistMetadata = {
           id: raw.id || 'playlist',
-          title: raw.title || 'YouTube Playlist',
+          title: raw.title || (raw.channel ? `${raw.channel} - Latest Videos` : 'YouTube Playlist'),
           platform: 'youtube',
           url: validation.cleanUrl,
           videoCount: videos.length,
           videos,
+          isChannel: detectedIsChannel,
+          channelTitle: raw.channel || raw.uploader,
+          channelFollowers: raw.channel_follower_count,
+          channelAvatar,
         };
 
-        logger.engine('YTDLP', `Playlist parsed successfully in ${durationMs}ms`, {
+        logger.engine('YTDLP', `${detectedIsChannel ? 'Channel' : 'Playlist'} parsed successfully in ${durationMs}ms`, {
           title: playlist.title,
           videoCount: playlist.videoCount,
+          isChannel: detectedIsChannel,
         });
 
         resolve(playlist);

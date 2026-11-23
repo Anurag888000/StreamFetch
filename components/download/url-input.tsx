@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
   Layers,
   Sparkles,
+  Tv,
 } from 'lucide-react';
 import { validateVideoUrl } from '@/lib/validators';
 
@@ -32,6 +33,9 @@ export default function UrlInput({ onSubmit, onBatchSubmit, isLoading }: UrlInpu
   const detectedPlatform = useMemo(() => {
     const trimmed = url.trim().toLowerCase();
     if (!trimmed) return null;
+    if (trimmed.includes('youtube.com/@') || trimmed.includes('/channel/') || trimmed.includes('/c/')) {
+      return { name: 'Channel', icon: Tv, color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' };
+    }
     if (trimmed.includes('list=') || trimmed.includes('/playlist')) {
       return { name: 'Playlist', icon: ListMusic, color: 'text-purple-400 bg-purple-500/10 border-purple-500/20' };
     }
@@ -184,7 +188,7 @@ export default function UrlInput({ onSubmit, onBatchSubmit, isLoading }: UrlInpu
                 setUrl(e.target.value);
                 if (validationError) setValidationError(null);
               }}
-              placeholder="Paste YouTube, Playlist, Reels, or Facebook link..."
+              placeholder="Paste YouTube video, playlist, channel (@name), or reels link..."
               disabled={isLoading}
               className="w-full h-12 px-3 sm:px-2 rounded-xl bg-transparent text-white placeholder-neutral-500 focus:outline-none text-sm sm:text-base font-normal disabled:opacity-60"
             />

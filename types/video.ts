@@ -50,5 +50,10 @@ export interface PlaylistMetadata {
   url: string;
   videoCount: number;
   videos: PlaylistVideoSummary[];
+  isChannel?: boolean;
+  channelTitle?: string;
+  channelFollowers?: number | string;
+  channelAvatar?: string;
+  channelBanner?: string;
 }
 

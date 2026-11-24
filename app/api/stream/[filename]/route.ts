@@ -85,7 +85,7 @@ export async function GET(
 
   const searchParams = req.nextUrl.searchParams;
   const rawUrl = searchParams.get('url');
-  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best';
   const customOutputFormat = searchParams.get('outputFormat');
   const customSizeStr = searchParams.get('size');
   const durationParam = searchParams.get('duration');
@@ -205,6 +205,12 @@ export async function GET(
         safeEnqueue(new Uint8Array(chunk));
       });
 
+      let stderrOutput = '';
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderrOutput += chunk.toString();
+      });
+
       child.stdout.on('end', () => {
         safeClose();
       });
@@ -217,7 +223,15 @@ export async function GET(
       child.on('close', (code) => {
         safeClose();
         if (code !== 0) {
-          logger.error('API:STREAM', `Process exited non-zero (${code}) during IDM stream`);
+          const isBotBlock =
+            stderrOutput.includes('Sign in to confirm you') ||
+            stderrOutput.includes('bot') ||
+            stderrOutput.includes('LOGIN_REQUIRED');
+          const cleanErr = stderrOutput.trim().split('\n').filter(Boolean).pop() || `Process exited with code ${code}`;
+          logger.error('API:STREAM', `Process exited non-zero (${code}) during IDM stream: ${cleanErr}`, {
+            isBotBlock,
+            stderr: stderrOutput.slice(-500),
+          });
         } else {
           logger.info('API:STREAM', `IDM stream finished cleanly for ${finalFilename}`);
         }

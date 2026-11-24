@@ -73,7 +73,7 @@ export async function GET(
 
   const searchParams = req.nextUrl.searchParams;
   const urlsParam = searchParams.get('urls');
-  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best';
+  const formatId = searchParams.get('formatId') || 'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best';
   const outputFormat = searchParams.get('outputFormat') || 'mp4';
 
   if (!urlsParam) {

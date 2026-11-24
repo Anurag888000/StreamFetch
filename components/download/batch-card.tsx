@@ -21,7 +21,7 @@ interface BatchCardProps {
 export default function BatchCard({ urls, onReset }: BatchCardProps) {
   const [outputFormat, setOutputFormat] = useState<'mp4' | 'mp3'>('mp4');
   const [formatQuality, setFormatQuality] = useState(
-    'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+    'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best'
   );
   const [copied, setCopied] = useState(false);
 
@@ -106,7 +106,7 @@ export default function BatchCard({ urls, onReset }: BatchCardProps) {
             onClick={() => {
               setOutputFormat('mp4');
               setFormatQuality(
-                'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+                'bestvideo[height<=1080][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=1080]+bestaudio/best[height<=1080]/bestvideo+bestaudio/best'
               );
             }}
             className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
@@ -129,7 +129,7 @@ export default function BatchCard({ urls, onReset }: BatchCardProps) {
             onClick={() => {
               setOutputFormat('mp4');
               setFormatQuality(
-                'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/best'
+                'bestvideo[height<=720][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=720]+bestaudio/best[height<=720]/bestvideo+bestaudio/best'
               );
             }}
             className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${
@@ -152,7 +152,7 @@ export default function BatchCard({ urls, onReset }: BatchCardProps) {
             onClick={() => {
               setOutputFormat('mp4');
               setFormatQuality(
-                'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/best'
+                'bestvideo[height<=480][vcodec^=avc1]+bestaudio[acodec^=mp4a]/bestvideo[height<=480]+bestaudio/best[height<=480]/bestvideo+bestaudio/best'
               );
             }}
             className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all ${

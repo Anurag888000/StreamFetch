@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Streamlined `components/download/playlist-card.tsx` to ZIP-only download mode: removed individual video MP4/MP3 buttons and batch download buttons in favor of a single prominent full-width **"Download Videos as ZIP in IDM / Chrome"** action button.
 
 ### Fixed
+- **Bulletproof Format Fallback & Stderr Diagnostics on Video Streaming**:
+  - `components/download/playlist-card.tsx` & `components/download/batch-card.tsx`: Appended `/bestvideo+bestaudio/best` as an ultimate fallback across all quality presets (1080p FHD, 720p HD, 480p SD), completely preventing yt-dlp `Requested format is not available` failures when videos use non-standard codecs or multi-track Opus audio without AAC.
+  - `app/api/stream/[filename]/route.ts`: Integrated `child.stderr.on('data')` capture and detailed error logging on non-zero exit codes with automated bot-protection detection, ensuring any stream failure is clearly diagnosed.
+  - `lib/ytdlp.ts`: Enhanced `consolidateFormats` with fallback to `bestvideo+bestaudio/best` across all generated resolution tiers.
 - **Fixed Playlist Header Button Alignment & Text Wrapping**:
   - `components/download/playlist-card.tsx`: Enforced uniform `h-9` height, `px-3` horizontal padding, `whitespace-nowrap`, and `shrink-0` across all quick action buttons (`Copy ZIP Link`, `Select All / Deselect All`, and `Fullscreen`).
   - Completely eliminated multi-line text wrapping and mismatched button heights.

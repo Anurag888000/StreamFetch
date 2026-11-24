@@ -251,7 +251,7 @@ function consolidateFormats(formats: VideoFormat[]): VideoFormat[] {
   for (const height of targetHeights) {
     const hNum = height.replace('p', '');
     result.push({
-      formatId: `bestvideo[height<=${hNum}]+bestaudio/best[height<=${hNum}]`,
+      formatId: `bestvideo[height<=${hNum}]+bestaudio/best[height<=${hNum}]/bestvideo+bestaudio/best`,
       ext: 'mp4',
       resolution: height,
       qualityLabel: `${height} (MP4)`,
